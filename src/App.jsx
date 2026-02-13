@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { NPC_PROFILES, SECRET_KEYWORDS } from "./data/npcs";
 import { buildSystemPrompt } from "./data/prompts";
 import { detectTone } from "./utils/tone";
@@ -37,59 +37,93 @@ function formatGreeting(npc) {
   };
 }
 
+function createFreshNPCState(npcKey) {
+  const npcData = NPC_PROFILES[npcKey];
+  return {
+    messages: [formatGreeting(npcData)],
+    discoveredSecrets: [],
+    toneLog: [],
+    stats: { ...INITIAL_STATS },
+    currentMood: {
+      emotion: npcData.greeting.emotion,
+      trust_level: npcData.greeting.trust_level,
+    },
+    moodHistory: [{
+      emotion: npcData.greeting.emotion,
+      trust_level: npcData.greeting.trust_level,
+      turn: 0,
+    }],
+  };
+}
+
 export default function App() {
   const [selectedNPC, setSelectedNPC] = useState("aldric");
-  const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showConfig, setShowConfig] = useState(false);
   const [showLore, setShowLore] = useState(false);
-  const [discoveredSecrets, setDiscoveredSecrets] = useState([]);
-  const [toneLog, setToneLog] = useState([]);
-  const [stats, setStats] = useState(INITIAL_STATS);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
 
-  // Mood tracking
-  const [currentMood, setCurrentMood] = useState({ emotion: "neutre", trust_level: 3 });
-  const [moodHistory, setMoodHistory] = useState([]);
+  // Per-NPC state storage — persists across switches
+  const npcStatesRef = useRef({});
 
-  const npc = NPC_PROFILES[selectedNPC];
-
-  // Reset when switching NPC
-  useEffect(() => {
-    resetConversation();
-  }, [selectedNPC]);
-
-  function resetConversation() {
-    const npcData = NPC_PROFILES[selectedNPC];
-    const greeting = formatGreeting(npcData);
-    setMessages([greeting]);
-    setDiscoveredSecrets([]);
-    setToneLog([]);
-    setStats(INITIAL_STATS);
-    setError(null);
-    setCurrentMood({
-      emotion: npcData.greeting.emotion,
-      trust_level: npcData.greeting.trust_level,
-    });
-    setMoodHistory([{
-      emotion: npcData.greeting.emotion,
-      trust_level: npcData.greeting.trust_level,
-      turn: 0,
-    }]);
+  function getNPCState(npcKey) {
+    if (!npcStatesRef.current[npcKey]) {
+      npcStatesRef.current[npcKey] = createFreshNPCState(npcKey);
+    }
+    return npcStatesRef.current[npcKey];
   }
 
-  function checkForSecrets(text) {
+  // Force re-render helper
+  const [, forceUpdate] = useState(0);
+  const rerender = () => forceUpdate((n) => n + 1);
+
+  // Current NPC state
+  const state = getNPCState(selectedNPC);
+  const npc = NPC_PROFILES[selectedNPC];
+
+  function handleSelectNPC(npcKey) {
+    if (npcKey === selectedNPC) return;
+    setSelectedNPC(npcKey);
+    setError(null);
+    rerender();
+  }
+
+  function resetConversation() {
+    npcStatesRef.current[selectedNPC] = createFreshNPCState(selectedNPC);
+    setError(null);
+    rerender();
+  }
+
+  function resetAllConversations() {
+    npcStatesRef.current = {};
+    setError(null);
+    rerender();
+  }
+
+  function checkForSecrets(text, currentSecrets) {
     const lower = text.toLowerCase();
     const newSecrets = [];
     SECRET_KEYWORDS.forEach(({ key, label }) => {
-      if (lower.includes(key) && !discoveredSecrets.includes(label)) {
+      if (lower.includes(key) && !currentSecrets.includes(label)) {
         newSecrets.push(label);
       }
     });
     if (newSecrets.length > 0) {
-      setDiscoveredSecrets((prev) => [...prev, ...newSecrets.filter((s) => !prev.includes(s))]);
+      state.discoveredSecrets = [
+        ...currentSecrets,
+        ...newSecrets.filter((s) => !currentSecrets.includes(s)),
+      ];
     }
+  }
+
+  // Collect discovered secrets across ALL NPCs
+  function getAllDiscoveredSecrets() {
+    const all = new Set();
+    Object.values(npcStatesRef.current).forEach((s) => {
+      s.discoveredSecrets.forEach((secret) => all.add(secret));
+    });
+    return [...all];
   }
 
   const handleSendMessage = useCallback(async (text) => {
@@ -97,24 +131,21 @@ export default function App() {
     setError(null);
 
     const tones = detectTone(text);
-    setToneLog((prev) => [
-      ...prev,
+    state.toneLog = [
+      ...state.toneLog,
       { message: text.slice(0, 50), tones, timestamp: Date.now() },
-    ]);
+    ];
 
     const userMsg = { role: "user", content: text, tones, timestamp: Date.now() };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
+    state.messages = [...state.messages, userMsg];
+    rerender();
     setIsLoading(true);
 
     try {
-      // Build API messages — for assistant messages, send the dialogue as content
-      // so the LLM sees its own previous responses as plain text
-      const apiMessages = updatedMessages
+      const apiMessages = state.messages
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => {
           if (m.role === "assistant") {
-            // Reconstruct a natural text version for context
             const parts = [];
             if (m.action) parts.push(`*${m.action}*`);
             parts.push(m.dialogue || m.content || "");
@@ -134,8 +165,8 @@ export default function App() {
       });
 
       // Add structured assistant response
-      setMessages((prev) => [
-        ...prev,
+      state.messages = [
+        ...state.messages,
         {
           role: "assistant",
           dialogue: result.dialogue,
@@ -146,41 +177,37 @@ export default function App() {
           isStructured: result.isStructured,
           timestamp: Date.now(),
         },
-      ]);
+      ];
 
       // Update mood
-      const newMood = { emotion: result.emotion, trust_level: result.trust_level };
-      setCurrentMood(newMood);
-      setMoodHistory((prev) => [...prev, { ...newMood, turn: prev.length }]);
+      state.currentMood = { emotion: result.emotion, trust_level: result.trust_level };
+      state.moodHistory = [...state.moodHistory, { ...state.currentMood, turn: state.moodHistory.length }];
 
       // Update stats
-      setStats((prev) => {
-        const newLatencies = [...prev.latencies, result.meta.latency];
-        return {
-          messageCount: prev.messageCount + 1,
-          totalTokens: prev.totalTokens + result.meta.totalTokens,
-          latencies: newLatencies,
-          avgLatency: Math.round(
-            newLatencies.reduce((a, b) => a + b, 0) / newLatencies.length
-          ),
-          totalCost: prev.totalCost + result.meta.cost,
-          lastModel: result.meta.model,
-        };
-      });
+      const newLatencies = [...state.stats.latencies, result.meta.latency];
+      state.stats = {
+        messageCount: state.stats.messageCount + 1,
+        totalTokens: state.stats.totalTokens + result.meta.totalTokens,
+        latencies: newLatencies,
+        avgLatency: Math.round(newLatencies.reduce((a, b) => a + b, 0) / newLatencies.length),
+        totalCost: state.stats.totalCost + result.meta.cost,
+        lastModel: result.meta.model,
+      };
 
-      // Check secrets in dialogue
-      checkForSecrets(result.dialogue + " " + (result.action || ""));
+      // Check secrets
+      checkForSecrets(result.dialogue + " " + (result.action || ""), state.discoveredSecrets);
 
     } catch (err) {
       setError(err.message);
-      setMessages((prev) => [
-        ...prev,
+      state.messages = [
+        ...state.messages,
         { role: "system", content: `⚠️ Erreur : ${err.message}`, timestamp: Date.now() },
-      ]);
+      ];
     }
 
     setIsLoading(false);
-  }, [messages, isLoading, npc, config, discoveredSecrets]);
+    rerender();
+  }, [selectedNPC, isLoading, npc, config]);
 
   const toggleConfig = () => {
     setShowConfig(!showConfig);
@@ -191,6 +218,8 @@ export default function App() {
     setShowLore(!showLore);
     if (!showLore) setShowConfig(false);
   };
+
+  const allSecrets = getAllDiscoveredSecrets();
 
   return (
     <div className="app-container">
@@ -204,22 +233,24 @@ export default function App() {
         <div className="header-right">
           <button className="icon-btn" onClick={toggleLore} title="Journal de quête">📜</button>
           <button className="icon-btn" onClick={toggleConfig} title="Configuration">⚙️</button>
-          <button className="icon-btn" onClick={resetConversation} title="Nouvelle conversation">🔄</button>
+          <button className="icon-btn" onClick={resetConversation} title="Reset ce PNJ">🔄</button>
+          <button className="icon-btn" onClick={resetAllConversations} title="Nouvelle enquête (reset tout)">🗑️</button>
         </div>
       </header>
 
       <div className="main-layout">
         <Sidebar
           selectedNPC={selectedNPC}
-          onSelectNPC={setSelectedNPC}
-          stats={stats}
-          discoveredSecrets={discoveredSecrets}
-          currentMood={currentMood}
-          moodHistory={moodHistory}
+          onSelectNPC={handleSelectNPC}
+          stats={state.stats}
+          discoveredSecrets={allSecrets}
+          currentMood={state.currentMood}
+          moodHistory={state.moodHistory}
+          npcStates={npcStatesRef.current}
         />
 
         <ChatArea
-          messages={messages}
+          messages={state.messages}
           npc={npc}
           isLoading={isLoading}
           error={error}
@@ -230,7 +261,7 @@ export default function App() {
           <ConfigPanel
             config={config}
             onConfigChange={setConfig}
-            toneLog={toneLog}
+            toneLog={state.toneLog}
             npc={npc}
             onClose={() => setShowConfig(false)}
           />

@@ -197,6 +197,19 @@ input[type="range"] {
   color: #8b7355;
 }
 
+.npc-active-dot {
+  color: #70c070;
+  font-size: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
 /* Stats box */
 .stats-box,
 .secrets-box {

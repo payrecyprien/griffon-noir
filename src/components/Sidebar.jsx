@@ -79,23 +79,31 @@ function getTrustColor(level) {
   return colors[level] || "#8b7355";
 }
 
-export default function Sidebar({ selectedNPC, onSelectNPC, stats, discoveredSecrets, currentMood, moodHistory }) {
+export default function Sidebar({ selectedNPC, onSelectNPC, stats, discoveredSecrets, currentMood, moodHistory, npcStates }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-title">Personnages</div>
-      {Object.entries(NPC_PROFILES).map(([key, p]) => (
-        <button
-          key={key}
-          onClick={() => onSelectNPC(key)}
-          className={`npc-card ${selectedNPC === key ? "active" : ""}`}
-        >
-          <span className="npc-portrait">{p.portrait}</span>
-          <div>
-            <div className="npc-name">{p.name}</div>
-            <div className="npc-role">{p.title}</div>
-          </div>
-        </button>
-      ))}
+      {Object.entries(NPC_PROFILES).map(([key, p]) => {
+        const hasConversation = npcStates?.[key]?.messages?.length > 1;
+        return (
+          <button
+            key={key}
+            onClick={() => onSelectNPC(key)}
+            className={`npc-card ${selectedNPC === key ? "active" : ""}`}
+          >
+            <span className="npc-portrait">{p.portrait}</span>
+            <div>
+              <div className="npc-name">
+                {p.name}
+                {hasConversation && selectedNPC !== key && (
+                  <span className="npc-active-dot" title="Conversation en cours">●</span>
+                )}
+              </div>
+              <div className="npc-role">{p.title}</div>
+            </div>
+          </button>
+        );
+      })}
 
       {/* Mood tracker */}
       <MoodTracker
