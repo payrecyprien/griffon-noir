@@ -1,8 +1,9 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { NPC_PROFILES, SECRET_KEYWORDS } from "./data/npcs";
 import { buildSystemPrompt } from "./data/prompts";
 import { detectTone } from "./utils/tone";
 import { sendChatMessage } from "./utils/api";
+import { readContextFromURL, clearURLContext } from "./utils/context";
 import Sidebar from "./components/Sidebar";
 import ChatArea from "./components/ChatArea";
 import ConfigPanel from "./components/ConfigPanel";
@@ -63,6 +64,18 @@ export default function App() {
   const [showConfig, setShowConfig] = useState(false);
   const [showLore, setShowLore] = useState(false);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
+
+  // External context from other Cendrebourg projects (Forge + Bestiaire)
+  const [externalContext, setExternalContext] = useState(null);
+
+  // Read context from URL on mount
+  useEffect(() => {
+    const ctx = readContextFromURL();
+    if (ctx && (ctx.quest || ctx.creatures)) {
+      setExternalContext(ctx);
+      clearURLContext();
+    }
+  }, []);
 
   // Per-NPC state storage — persists across switches
   const npcStatesRef = useRef({});
@@ -154,7 +167,7 @@ export default function App() {
           return { role: "user", content: m.content };
         });
 
-      const systemPrompt = buildSystemPrompt(npc, config);
+      const systemPrompt = buildSystemPrompt(npc, config, externalContext);
 
       const result = await sendChatMessage({
         model: config.model,
@@ -207,7 +220,7 @@ export default function App() {
 
     setIsLoading(false);
     rerender();
-  }, [selectedNPC, isLoading, npc, config]);
+  }, [selectedNPC, isLoading, npc, config, externalContext]);
 
   const toggleConfig = () => {
     setShowConfig(!showConfig);
@@ -239,6 +252,25 @@ export default function App() {
       </header>
 
       <div className="main-layout">
+        {/* External context banner */}
+        {externalContext && (
+          <div className="external-context-banner">
+            <div className="external-context-content">
+              <span className="external-context-icon">🔗</span>
+              <div className="external-context-info">
+                {externalContext.quest && (
+                  <span className="external-tag quest-tag">🗺️ {externalContext.quest.title}</span>
+                )}
+                {externalContext.creatures?.map((c, i) => (
+                  <span key={i} className="external-tag creature-tag">🐺 {c.name}</span>
+                ))}
+                <span className="external-hint">Les PNJs sont au courant — posez-leur des questions !</span>
+              </div>
+            </div>
+            <button className="external-dismiss" onClick={() => setExternalContext(null)}>✕</button>
+          </div>
+        )}
+
         <Sidebar
           selectedNPC={selectedNPC}
           onSelectNPC={handleSelectNPC}
