@@ -78,18 +78,18 @@ function buildExternalSection(ctx, npc) {
   if (ctx.quest) {
     parts.push(`
 ## ÉVÉNEMENT RÉCENT À CENDREBOURG (contexte additionnel)
-Une quête circule en ville : "${ctx.quest.title}".
+Une quête fait parler tout Cendrebourg : "${ctx.quest.title}".
 ${ctx.quest.description || ""}
 ${ctx.quest.location_id ? `Lieu concerné : ${ctx.quest.location_id}` : ""}
 ${ctx.quest.faction_involved ? `Faction impliquée : ${ctx.quest.faction_involved}` : ""}
 ${ctx.quest.objectives ? `Objectifs connus : ${ctx.quest.objectives.join(", ")}` : ""}
 ${ctx.quest.moral_choice ? `Un dilemme moral est en jeu : ${ctx.quest.moral_choice}` : ""}
 
-Tu as ENTENDU PARLER de cette quête. Selon ta personnalité :
-${npc.name === "Aldric" ? "- Tu en as entendu parler par tes clients. Tu peux donner des conseils pratiques mais tu es inquiet." : ""}
-${npc.name === "Elara" ? "- Tu as des informations supplémentaires grâce à ton réseau d'espionnage. Tu fais des allusions cryptiques." : ""}
-${npc.name === "Gareth" ? "- Tu as reçu des ordres concernant cette affaire. Tu es partagé entre ton devoir et tes doutes." : ""}
-Si le joueur en parle, tu réagis naturellement. Tu ne mentionnes PAS la quête spontanément sauf si elle est pertinente.`);
+Tu es AU COURANT de cette quête et tu en parles si l'occasion se présente. Selon ta personnalité :
+${npc.name === "Aldric" ? "- Tes clients en parlent depuis des jours. Tu mentionnes cette quête par son nom dès que le joueur aborde un sujet lié (aventure, danger, aide). Tu donnes des détails concrets que tes clients t'ont rapportés." : ""}
+${npc.name === "Elara" ? "- Tu as enquêté sur cette affaire grâce à ton réseau. Tu fais des allusions précises en nommant la quête et ses détails. Tu offres ton aide en échange d'informations." : ""}
+${npc.name === "Gareth" ? "- Tu as reçu des rapports officiels sur cette affaire. Tu peux donner des détails tactiques en nommant les lieux et les factions impliquées." : ""}
+IMPORTANT : Tu NOMMES la quête "${ctx.quest.title}" quand tu en parles, pas des allusions vagues.`);
   }
 
   if (ctx.creatures && ctx.creatures.length > 0) {
@@ -99,14 +99,14 @@ Si le joueur en parle, tu réagis naturellement. Tu ne mentionnes PAS la quête 
 
     parts.push(`
 ## CRÉATURES SIGNALÉES DANS LA RÉGION
-Des créatures dangereuses ont été repérées récemment :
+Des créatures dangereuses ont été signalées. Tu connais leurs NOMS et tu les utilises quand tu en parles :
 ${creatureList}
 
-Tu as entendu des RUMEURS sur ces créatures. Selon ta personnalité :
-${npc.name === "Aldric" ? "- Des clients ont mentionné ces bêtes. Tu les décris avec des termes de tavernier (\"une horreur\", \"ça vous glace le sang\")." : ""}
-${npc.name === "Elara" ? "- Tu as étudié ces créatures et tu connais leurs faiblesses. Tu les révèles en échange d'information." : ""}
-${npc.name === "Gareth" ? "- Tes patrouilles ont croisé ces créatures. Tu peux décrire des rencontres tactiques." : ""}
-Si le joueur demande des informations sur les créatures, tu partages ce que tu sais selon ton personnage.`);
+Selon ta personnalité :
+${npc.name === "Aldric" ? "- Des clients terrorisés ont décrit ces créatures en détail. Tu nommes les créatures et décris les témoignages de tes clients avec des termes colorés de tavernier." : ""}
+${npc.name === "Elara" ? "- Tu as étudié ces créatures et tu connais leurs noms et faiblesses. Tu les nommes avec précision et proposes des stratégies au joueur." : ""}
+${npc.name === "Gareth" ? "- Tes patrouilles ont croisé ces créatures. Tu les nommes dans tes rapports et décris les tactiques utilisées par tes hommes." : ""}
+IMPORTANT : Tu utilises les NOMS EXACTS des créatures (${ctx.creatures.map((c) => c.name).join(", ")}) quand tu en parles, pas des descriptions vagues comme "des bêtes" ou "des monstres".`);
   }
 
   return parts.length > 0 ? "\n" + parts.join("\n") : "";
