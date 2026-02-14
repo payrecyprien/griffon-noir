@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { NPC_PROFILES, SECRET_KEYWORDS } from "./data/npcs";
 import { buildSystemPrompt } from "./data/prompts";
 import { detectTone } from "./utils/tone";
-import { sendChatMessage } from "./utils/api";
+import { sendChatMessage, generateAdventure } from "./utils/api";
 import { readContextFromURL, clearURLContext } from "./utils/context";
 import Sidebar from "./components/Sidebar";
 import ChatArea from "./components/ChatArea";
@@ -67,6 +67,7 @@ export default function App() {
 
   // External context from other Cendrebourg projects (Forge + Bestiaire)
   const [externalContext, setExternalContext] = useState(null);
+  const [isGeneratingAdventure, setIsGeneratingAdventure] = useState(false);
 
   // Read context from URL on mount
   useEffect(() => {
@@ -232,6 +233,31 @@ export default function App() {
     if (!showLore) setShowConfig(false);
   };
 
+  const handleGenerateAdventure = async () => {
+    if (isGeneratingAdventure) return;
+    setIsGeneratingAdventure(true);
+
+    try {
+      const result = await generateAdventure();
+
+      if (result.quest) {
+        setExternalContext({
+          quest: result.quest,
+          creatures: result.creatures || [],
+          source: "auto",
+        });
+
+        // Reset all NPC conversations to start fresh with new context
+        npcStatesRef.current = {};
+        rerender();
+      }
+    } catch (err) {
+      console.error("Adventure generation failed:", err);
+    }
+
+    setIsGeneratingAdventure(false);
+  };
+
   const allSecrets = getAllDiscoveredSecrets();
 
   return (
@@ -244,6 +270,14 @@ export default function App() {
           <span className="header-subtitle">PNJ Conversationnel × RPG Investigation</span>
         </div>
         <div className="header-right">
+          <button
+            className={`adventure-btn ${isGeneratingAdventure ? "generating" : ""}`}
+            onClick={handleGenerateAdventure}
+            disabled={isGeneratingAdventure}
+            title="Générer une quête + créature automatiquement"
+          >
+            {isGeneratingAdventure ? "⏳ Génération..." : "🎲 Aventure aléatoire"}
+          </button>
           <button className="icon-btn" onClick={toggleLore} title="Journal de quête">📜</button>
           <button className="icon-btn" onClick={toggleConfig} title="Configuration">⚙️</button>
           <button className="icon-btn" onClick={resetConversation} title="Reset ce PNJ">🔄</button>

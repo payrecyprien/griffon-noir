@@ -686,6 +686,42 @@ input[type="range"] {
 }
 
 /* ─── EXTERNAL CONTEXT BANNER ─── */
+
+.adventure-btn {
+  font-family: "Cinzel", serif;
+  font-size: 12px;
+  padding: 6px 16px;
+  background: linear-gradient(135deg, rgba(212, 168, 86, 0.12), rgba(128, 96, 176, 0.12));
+  border: 1px solid rgba(212, 168, 86, 0.2);
+  border-radius: 6px;
+  color: #d4a856;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.adventure-btn:hover {
+  background: linear-gradient(135deg, rgba(212, 168, 86, 0.2), rgba(128, 96, 176, 0.2));
+  border-color: rgba(212, 168, 86, 0.35);
+  color: #e8c870;
+  transform: translateY(-1px);
+}
+
+.adventure-btn.generating {
+  opacity: 0.7;
+  cursor: wait;
+  animation: pulse-adventure 1.5s ease-in-out infinite;
+}
+
+.adventure-btn:disabled {
+  cursor: wait;
+}
+
+@keyframes pulse-adventure {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
 .external-context-banner {
   display: flex;
   align-items: center;

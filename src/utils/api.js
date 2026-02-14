@@ -81,3 +81,24 @@ export async function sendChatMessage({ model, maxTokens, temperature, systemPro
     },
   };
 }
+
+/**
+ * Auto-generate a quest + creature via the adventure endpoint.
+ * Single call — the server handles both steps sequentially.
+ * Uses Haiku for speed and cost (~$0.002 total).
+ */
+export async function generateAdventure() {
+  const response = await fetch("/api/adventure", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+
+  const data = await response.json();
+
+  if (data.error && !data.quest) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}

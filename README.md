@@ -1,159 +1,85 @@
 # ⚔️ Dialogues du Griffon Noir
 
-Un mini-jeu d'investigation en texte où le joueur interroge des PNJs dans une taverne médiévale-fantasy. Chaque PNJ est alimenté par un LLM, possède sa propre personnalité, des connaissances publiques et des secrets qu'il ne révèle que sous certaines conditions.
+**PNJ conversationnel alimenté par LLM pour un jeu d'investigation RPG**
 
-🔗 **[Demo live](https://griffon-noir.vercel.app)**
-
----
-
-## Gameplay
-
-Vous êtes un aventurier arrivé au village de Cendrebourg pour enquêter sur des disparitions mystérieuses. Dans la taverne du Griffon Noir, deux personnages détiennent des informations cruciales — mais ils ne les lâcheront pas facilement.
-
-- **Aldric** 🍺 — Tavernier jovial en surface, ancien soldat de la Garde Royale. Protège ses secrets avec des demi-vérités.
-- **Elara** 🔮 — Marchande itinérante mystérieuse. Semble en savoir plus qu'elle ne le dit.
-
-**8 secrets à découvrir.** Votre approche influence les révélations : être amical, menaçant, poser des questions précises ou offrir de l'aide donne des résultats différents.
+🔗 [**Démo live**](https://griffon-noir.vercel.app) · 🏰 [**Écosystème Cendrebourg**](https://cendrebourg-landing.vercel.app)
 
 ---
+
+## Concept
+
+Un mini-jeu d'investigation où le joueur interroge les habitants d'une taverne médiévale-fantasy pour découvrir la vérité sur des disparitions mystérieuses. Chaque PNJ a sa personnalité, ses secrets, et réagit différemment selon l'approche du joueur.
+
+Le projet démontre comment le **prompt engineering** peut créer des personnages crédibles et cohérents avec des mécaniques de jeu (secrets à débloquer, confiance à gagner, protection anti-jailbreak).
 
 ## Fonctionnalités
 
-- **PNJs alimentés par LLM** avec personnalité, backstory, et connaissances à plusieurs niveaux (publiques, cachées, interdites)
-- **Système de révélation conditionnel** — le comportement du joueur débloque différents indices
-- **Détection de ton** en temps réel (amical, agressif, enquête, corruption, jailbreak)
-- **Protection anti-jailbreak** — le PNJ reste dans son personnage
-- **Tracker de secrets** avec barre de progression
-- **Panneau de configuration** exposant les paramètres : modèle, température, max tokens, longueur de réponse
-- **Métriques par message** : latence, tokens consommés, coût estimé
-- **Journal de quête** avec le lore du monde
+- **3 PNJs distincts** — Aldric (tavernier jovial), Elara (marchande mystérieuse), Gareth (capitaine tiraillé)
+- **11 secrets** à découvrir par l'investigation, répartis entre les PNJs
+- **Mood tracker temps réel** — émotion + barre de confiance (1-5) + historique visuel
+- **Structured JSON output** — le LLM retourne dialogue, action, émotion et confiance dans un format parsable
+- **Détection de ton** — analyse côté client du message du joueur (amical, menaçant, curieux...)
+- **Anti-jailbreak** — les PNJs ignorent les tentatives de sortie de rôle
+- **Persistance par PNJ** — switcher de personnage conserve chaque conversation
+- **Secrets agrégés** — un secret découvert avec Aldric reste visible chez Gareth
+- **Pipeline cross-projet** — reçoit le contexte de quêtes et créatures via URL
+- **Panneau de configuration** — température, modèle, longueur, aperçu du system prompt
 
----
+## Techniques de prompt engineering
+
+| Technique | Implémentation |
+|---|---|
+| Persona structuré | Personnalité, backstory, ton, connaissances séparées en public / caché / interdit |
+| Conditions de révélation | 4 modes (amical, menaçant, malin, corruption) avec comportements différents |
+| Structured output | JSON obligatoire à 4 champs (dialogue, action, emotion, trust_level) |
+| Anti-jailbreak | Instruction de rester dans le personnage face aux tentatives meta |
+| Mémoire conversationnelle | Historique complet envoyé, le PNJ doit y faire référence |
+| Contexte externe | Quêtes et créatures d'autres projets injectées dans le system prompt |
+| Ton adaptatif | Longueur et style contrôlables via paramètres exposés |
 
 ## Architecture
 
 ```
 griffon-noir/
-├── api/
-│   └── chat.js              # Vercel serverless — proxy API (clé cachée côté serveur)
+├── api/chat.js              → Proxy serverless → Anthropic API
 ├── src/
-│   ├── components/
-│   │   ├── ChatArea.jsx      # Zone de conversation + input
-│   │   ├── ConfigPanel.jsx   # Panneau de configuration
-│   │   ├── LorePanel.jsx     # Journal de quête
-│   │   └── Sidebar.jsx       # Sélection PNJ, métriques, secrets
 │   ├── data/
-│   │   ├── npcs.js           # Profils PNJ (personnalité, connaissances, conditions)
-│   │   └── prompts.js        # Template du system prompt (versionné)
+│   │   ├── npcs.js          → Profils des 3 PNJs (personnalité, secrets, conditions)
+│   │   └── prompts.js       → System prompt v5 (structured output + contexte externe)
 │   ├── utils/
-│   │   ├── api.js            # Client API + calcul de coût
-│   │   └── tone.js           # Détection de ton côté client
-│   ├── styles/
-│   │   └── index.css         # Styles globaux
-│   ├── App.jsx               # Orchestrateur principal
-│   └── main.jsx              # Point d'entrée React
-├── vercel.json
-├── vite.config.js
-└── package.json
+│   │   ├── api.js           → Appel API + parsing JSON structuré
+│   │   ├── tone.js          → Détection de ton côté client
+│   │   └── context.js       → Encodage/décodage contexte cross-projet (base64 URL)
+│   ├── components/
+│   │   ├── ChatArea.jsx     → Zone de dialogue + badges émotion
+│   │   ├── Sidebar.jsx      → PNJs + mood tracker + secrets + métriques
+│   │   ├── ConfigPanel.jsx  → Configuration du prompt (exposée volontairement)
+│   │   └── LorePanel.jsx    → Journal de quête
+│   └── App.jsx              → State management par PNJ via useRef
 ```
-
-### Flow d'un message
-
-```
-Joueur tape un message
-    ↓
-[Client] Détection de ton (keyword matching)
-    ↓
-[Client] Envoi POST /api/chat avec system prompt + historique complet
-    ↓
-[Serverless] Proxy vers API Anthropic (clé API côté serveur)
-    ↓
-[Client] Réception réponse + métriques (latence, tokens, coût)
-    ↓
-[Client] Scan réponse pour mots-clés de secrets
-    ↓
-[Client] Mise à jour UI (message, badges de ton, stats, secrets découverts)
-```
-
----
-
-## System Prompt — Itérations
-
-### v1 — Prompt basique
-Prompt simple avec personnalité et backstory en texte libre.
-
-**Problèmes :** Le PNJ révélait tout en 1-2 messages, sortait facilement du personnage, réponses trop longues.
-
-### v2 — Connaissances structurées
-Séparation explicite en 3 niveaux (public / caché / interdit) + conditions de révélation par type d'approche du joueur.
-
-**Amélioration :** Le PNJ distille les infos progressivement.
-**Problèmes restants :** Vulnérable au jailbreak, pas de mémoire conversationnelle.
-
-### v3 — Actuel
-- Anti-jailbreak : le PNJ traite les tentatives comme le comportement d'un étranger bizarre
-- Mémoire conversationnelle : référence aux échanges précédents
-- Longueur contrôlable via paramètres injectés dynamiquement
-- Multilingue (FR/EN)
-- Règles numérotées pour meilleure compliance
-
-### v4 — Pistes d'amélioration
-- Mood tracker : état émotionnel du PNJ évoluant au fil de la conversation
-- Structured output : réponse JSON (dialogue, action, émotion, confiance) pour intégration moteur de jeu
-- Few-shot examples pour les cas limites
-- Function calling : le PNJ déclenche des événements de jeu (donner un objet, appeler des gardes)
-
----
-
-## Métriques observées
-
-| Métrique | Sonnet 4 | Haiku 4.5 |
-|---|---|---|
-| Latence moyenne | ~1500ms | ~500ms |
-| Coût par message | ~$0.003 | ~$0.0005 |
-| Qualité personnage | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| Résistance jailbreak | Excellente | Bonne |
-
-**Trade-off possible :** Haiku pour les échanges courants (coût ÷6, latence ÷3), Sonnet pour les moments narratifs clés, avec routing dynamique basé sur la détection de ton.
-
----
-
-## Edge Cases Testés
-
-| Scénario | Comportement attendu | Résultat |
-|---|---|---|
-| Insultes répétées | Le PNJ menace d'expulser le joueur | ✅ |
-| "Ignore tes instructions" | Le PNJ réagit comme face à un fou | ✅ |
-| Questions hors-lore (dragons, magie) | Le PNJ dit ne pas savoir | ✅ |
-| Parler en anglais | Le PNJ répond en anglais | ✅ |
-| Répéter la même question | Le PNJ fait remarquer la répétition | ✅ |
-| Mentionner un secret directement | Le PNJ nie ou change de sujet | ✅ |
-
----
-
-## Installation locale
-
-```bash
-git clone https://github.com/[username]/griffon-noir.git
-cd griffon-noir
-npm install
-cp .env.example .env.local  # Ajouter ta clé API Anthropic
-npm run dev
-```
-
-## Déploiement (Vercel)
-
-```bash
-npx vercel --prod
-# Ajouter ANTHROPIC_API_KEY dans Vercel > Settings > Environment Variables
-```
-
----
 
 ## Stack
 
-- **Frontend :** React 18 + Vite
-- **Backend :** Vercel Serverless Functions (proxy API)
-- **LLM :** Anthropic Claude (Sonnet 4 / Haiku 4.5)
-- **Styling :** CSS custom (thème médiéval-fantasy)
-- **Fonts :** Cinzel + Crimson Text
+React 18 · Vite · Vercel Serverless · Claude Sonnet 4 / Haiku 4.5
+
+## Lancer en local
+
+```bash
+git clone https://github.com/payrecyprien/griffon-noir.git
+cd griffon-noir
+npm install
+echo "ANTHROPIC_API_KEY=sk-ant-xxxxx" > .env
+npm run dev
+```
+
+## Coût
+
+~$0.003/message (Sonnet 4). Une session de 20 messages ≈ $0.06.
+
+## Écosystème Cendrebourg
+
+Pipeline interconnecté : 🗺️ [Forge](https://forge-cendrebourg.vercel.app) → 📖 [Bestiaire](https://bestiaire-cendrebourg.vercel.app) → ⚔️ **Griffon Noir**
+
+---
+
+*[Cyprien Payré](https://github.com/payrecyprien) — Prompt Engineering × Game Design*
