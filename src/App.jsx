@@ -285,26 +285,26 @@ export default function App() {
         </div>
       </header>
 
-      <div className="main-layout">
-        {/* External context banner */}
-        {externalContext && (
-          <div className="external-context-banner">
-            <div className="external-context-content">
-              <span className="external-context-icon">🔗</span>
-              <div className="external-context-info">
-                {externalContext.quest && (
-                  <span className="external-tag quest-tag">🗺️ {externalContext.quest.title}</span>
-                )}
-                {externalContext.creatures?.map((c, i) => (
-                  <span key={i} className="external-tag creature-tag">🐺 {c.name}</span>
-                ))}
-                <span className="external-hint">Les PNJs sont au courant — posez-leur des questions !</span>
-              </div>
+      {/* External context banner — between header and content */}
+      {externalContext && (
+        <div className="external-context-banner">
+          <div className="external-context-content">
+            <span className="external-context-icon">🔗</span>
+            <div className="external-context-info">
+              {externalContext.quest && (
+                <span className="external-tag quest-tag">🗺️ {externalContext.quest.title}</span>
+              )}
+              {externalContext.creatures?.map((c, i) => (
+                <span key={i} className="external-tag creature-tag">🐺 {c.name}</span>
+              ))}
+              <span className="external-hint">Les PNJs sont au courant — posez-leur des questions !</span>
             </div>
-            <button className="external-dismiss" onClick={() => setExternalContext(null)}>✕</button>
           </div>
-        )}
+          <button className="external-dismiss" onClick={() => setExternalContext(null)}>✕</button>
+        </div>
+      )}
 
+      <div className="main-layout">
         <Sidebar
           selectedNPC={selectedNPC}
           onSelectNPC={handleSelectNPC}
